@@ -1,0 +1,13 @@
+{
+  "name": "todo-panel-local",
+  "owner": {
+    "name": "Frank"
+  },
+  "plugins": [
+    {
+      "name": "todo-panel",
+      "source": "./"
+    }
+  ],
+  "description": "Local marketplace for the todo-panel mod"
+}

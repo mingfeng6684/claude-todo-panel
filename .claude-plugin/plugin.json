@@ -1,0 +1,23 @@
+{
+  "name": "todo-panel",
+  "version": "0.1.3",
+  "description": "A To Do pane of pending decisions and backlog tasks, kept in .claude/todo-panel.md and ordered by Claude.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Panel language",
+      "description": "auto follows the language in Claude Code settings",
+      "default": "auto",
+      "options": [
+        "auto",
+        "zh-TW",
+        "en",
+        "ja"
+      ]
+    }
+  },
+  "author": {
+    "name": "Frank"
+  }
+}
