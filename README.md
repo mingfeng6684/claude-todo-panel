@@ -1,96 +1,96 @@
 # todo-panel
 
-[English](README.en.md)
+[繁體中文](README.zh-TW.md)
 
-Claude Code 的專案層級 To Do 面板。
+A project-level To Do panel for Claude Code.
 
-Claude Code 內建的任務清單是「這次 session 做哪些步驟」，session 結束就沒了。todo-panel 補的是另一層：**整個專案還有哪些事要做、哪些問題等你決定**。清單存在專案裡的 `.claude/todo-panel.md`（純 Markdown，可手改、可進版控），跨 session 存在，由 Claude 維護並排優先序——內建清單裡沒做完的任務也會自動併進來。
+Claude Code's built-in task list answers "what steps are we doing in this session?" and disappears when the session ends. todo-panel covers the other layer: **what is still left to do in the whole project, and which questions are waiting on you**. The list lives in your project as `.claude/todo-panel.md`: plain Markdown, hand-editable, and fine to commit. It persists across sessions, and Claude maintains it and keeps it in priority order. Tasks left open in the built-in list are folded in automatically.
 
-## 面板長什麼樣
+## What the panel looks like
 
-面板分兩區，開在 Claude Code 側邊：
+The panel opens in a side pane next to Claude Code and has two sections:
 
 ```text
 To Do                                      ✕
-依 Claude 建議優先序
+Prioritized by Claude
 
-待決策事項 (2)
-? 登入要用 OAuth 還是 Email 驗證碼？
-    阻塞：實作登入流程
-? 報表要不要支援匯出 PDF？
-輸入 /decide-questions，Claude 會逐項提出決策問題。
+Pending Decisions (2)
+? Should login use OAuth or an email code?
+    Blocks: Implement the login flow
+? Should reports support PDF export?
+Type /decide-questions and Claude will ask about each decision in turn.
 
-待執行任務 (3)
-1. 實作登入流程
-    等登入方式決定後就能動工
-2. 補 API 的整合測試
-    上次改動後測試缺口最大的地方
-3. 更新部署文件
-    低風險，隨時可做
+Backlog (3)
+1. Implement the login flow
+    Can start as soon as the login method is decided
+2. Add integration tests for the API
+    Biggest test gap after the last round of changes
+3. Update the deployment docs
+    Low risk, can be done any time
 ```
 
-- **待決策事項**：只有你能回答的問題。每項可以標注它卡住哪個任務，決定之後任務就解鎖。
-- **待執行任務**：講好但還沒做的工作，任務層級（不是零碎步驟），照 Claude 建議的優先序排列，每項附一行「為什麼排這裡」。
-- 點任務標題，輸入框會填入該任務名稱，按送出 Claude 就開始做。
-- 想調整順序或增刪項目，直接跟 Claude 說。
+- **Pending Decisions** are questions only you can answer. Each one can note which task it blocks; once you decide, that task is unblocked.
+- **Backlog** holds work that has been agreed but not done. Items are tasks, not small steps, listed in the order Claude recommends, each with a one-line reason for its place.
+- Click a task title and the input box is filled with that task's name; press send and Claude starts on it.
+- To reorder, add, or remove items, just tell Claude.
 
-## 安裝
+## Install
 
-需要 Claude Code 2.1.287 以上（`claude --version` 查看，`claude update` 更新）。
+Requires Claude Code 2.1.287 or later (check with `claude --version`, update with `claude update`).
 
-**方式一：終端機**
+**Option 1: terminal**
 
 ```bash
 claude plugin marketplace add mingfeng6684/claude-todo-panel
 claude plugin install todo-panel@todo-panel-local
 ```
 
-**方式二：Claude Code session 裡**
+**Option 2: inside a Claude Code session**
 
 ```text
 /plugin install todo-panel --marketplace mingfeng6684/claude-todo-panel
 ```
 
-出現 `Add marketplace?` 時回答 `y`，範圍選 user。
+When it asks `Add marketplace?`, answer `y` and pick the user scope.
 
-**方式三：Claude 桌面 App**（App 裡不能用 `/plugin`）
+**Option 3: Claude desktop app** (`/plugin` is not available in the app)
 
-點輸入框旁的 **+** → **Plugins** → **Add marketplace**，輸入 `mingfeng6684/claude-todo-panel`，再 **Add plugin**。
+Click **+** next to the input box → **Plugins** → **Add marketplace**, enter `mingfeng6684/claude-todo-panel`, then **Add plugin**.
 
-裝好後開新的 session，或在既有 session 輸入 `/reload-plugins`。
+After installing, start a new session, or type `/reload-plugins` in an existing one.
 
-## 開始使用
+## Getting started
 
-第一次在專案裡用，先跑：
+The first time you use it in a project, run:
 
 ```text
 /todo init
 ```
 
-Claude 會先偵測專案裡的計畫文件和你用的 skills（例如 `docs/`、`plans/`、superpowers 的計畫、PRD、TODO 註解），用選單問你要從哪些來源整理，讀完後**先列出建議清單給你確認**才寫入——不會自己亂編任務。專案裡什麼都沒有也沒關係，Claude 會改問你這個專案想做什麼，從頭幫你列。
+Claude first detects the plan documents and skills in your project (for example `docs/`, `plans/`, superpowers plans, PRDs, TODO/FIXME comments) and uses a menu to ask which sources to build the list from. After reading them it **shows you a proposed list and waits for your confirmation** before writing anything, so it won't make up tasks. If the project has nothing to read, that's fine: Claude asks what the project is for and what you want done next, and drafts a starting list from your answers and the code itself.
 
-設定好之後，只要專案裡有這份清單，每次開 session 面板都會自動打開，不必再輸入指令。
+Once the project has a list, the panel opens automatically at the start of every session; you don't need to run a command again.
 
-之後的指令：
+Commands:
 
-| 指令 | 做什麼 |
+| Command | What it does |
 |---|---|
-| `/todo show` | 開啟面板 |
-| `/todo hide` | 關閉面板（或點面板的關閉鈕）。關掉後這次 session 不會再自動跳出，`/todo show` 隨時叫回來 |
-| `/decide-questions` | Claude 列出所有待決策事項，一題一題用選項問你；每答完一題就移除該事項、更新任務清單，並告訴你哪些任務解鎖了 |
+| `/todo show` | Open the panel |
+| `/todo hide` | Close the panel (or click its close button). After closing, it won't pop up again automatically in this session; `/todo show` brings it back any time |
+| `/decide-questions` | Claude lists all pending decisions, then asks about them one at a time with multiple-choice options. After each answer, the decision is removed, the task list is updated, and Claude tells you which tasks were unblocked |
 
-## 清單怎麼保持最新
+## How the list stays current
 
-你不用手動清單子，做完的事會自己消失：
+You never have to tidy the list by hand. Finished items disappear on their own:
 
-1. **Claude 做完或你決定後**，Claude 直接把該項移除。
-2. **內建任務清單同步**：Claude 在這次 session 開的任務，回合結束時自動併入待執行任務；做完的自動移除。
-3. **計畫文件同步**：從某份計畫（如 `docs/plans/auth.md`）整理進來的項目，原文件裡打勾 `- [x]` 後，面板上的對應項目就消失。
-4. **手改也通**：直接編輯 `.claude/todo-panel.md`，面板幾秒內更新；把項目勾成 `- [x]` 等同完成移除。
+1. **Done or decided:** when a task is finished or you make a decision, Claude removes the item directly.
+2. **Built-in task list sync:** tasks Claude creates in the built-in task list during a session are merged into the Backlog when a turn ends, and removed once they are marked completed.
+3. **Plan document sync:** for items that were pulled in from a plan file (such as `docs/plans/auth.md`), ticking the item `- [x]` in that file makes it disappear from the panel.
+4. **Hand edits work too:** edit `.claude/todo-panel.md` directly and the panel updates within a few seconds. Changing an item to `- [x]` counts as done and removes it.
 
-## 資料就是一份 Markdown
+## The data is one Markdown file
 
-`.claude/todo-panel.md` 長這樣，檔頭就寫明可以手改：
+`.claude/todo-panel.md` looks like this, and the header says it's safe to edit by hand:
 
 ```markdown
 <!-- todo-panel: kept by the todo-panel mod; safe to edit by hand -->
@@ -100,32 +100,41 @@ Claude 會先偵測專案裡的計畫文件和你用的 skills（例如 `docs/`�
 - docs/plans/
 
 ## Pending Decisions
-- [ ] 登入要用 OAuth 還是 Email 驗證碼？ <!-- id:d1 blocks:t1 -->
+- [ ] Should login use OAuth or an email code? <!-- id:d1 blocks:t1 -->
 
 ## Backlog
-- [ ] 實作登入流程 <!-- id:t1 src:docs%2Fplans%2Fauth.md -->
-  - 等登入方式決定後就能動工
-- [ ] 補 API 的整合測試 <!-- id:t2 -->
-  - 上次改動後測試缺口最大的地方
+- [ ] Implement the login flow <!-- id:t1 src:docs%2Fplans%2Fauth.md -->
+  - Can start as soon as the login method is decided
+- [ ] Add integration tests for the API <!-- id:t2 -->
+  - Biggest test gap after the last round of changes
 ```
 
-註解裡的 `id` / `blocks` / `src` 是面板自己記的 metadata，不想管它也沒關係——`id` 漏了會自動補，`blocks` 和 `src` 本來就是選填。把這個檔 commit 進 repo，整個團隊和每個 session 看到的就是同一份清單。
+The `id`, `blocks`, and `src` values in the comments are metadata the panel keeps for itself, and you can ignore them: a missing `id` is filled in automatically, and `blocks` and `src` are optional. The indented line under a task is its reason ("why"). Commit the file to your repo and the whole team, and every session, sees the same list.
 
-## 面板語言
+## Panel language
 
-支援繁體中文、English、日本語。預設 `auto`，依序採用第一個找到的設定：
+English, Traditional Chinese (繁體中文), and Japanese (日本語) are supported. The setting defaults to `auto`, which uses the first of these that it finds:
 
-1. `/config` 裡 todo-panel 的 language 選項（zh-TW / en / ja）
-2. Claude Code 設定的 `language`
-3. Claude 桌面 App 選的介面語言
-4. 系統環境變數（`LC_ALL` / `LC_MESSAGES` / `LANG`）
+1. The todo-panel language option in `/config` (`zh-TW` / `en` / `ja`)
+2. The `language` setting in Claude Code
+3. The interface language chosen in the Claude desktop app
+4. The system environment variables (`LC_ALL` / `LC_MESSAGES` / `LANG`)
 
-都沒有就用英文。
+If none of them gives a supported language, English is used.
 
-## Token 用量
+## Access
 
-面板顯示、點擊填入、檔案同步都在本機執行，**不花 token**。會用到 token 的只有：
+Everything runs locally; the mod makes no network requests and runs no external commands.
 
-- 每次請求多帶約 300–600 token 的工具說明（會被快取）；
-- Claude 新增或更新一筆項目約 100–300 token；
-- `/todo init` 只跑一次，花費依專案文件多寡而定。
+- **Reads and writes** `.claude/todo-panel.md` in your project — the list itself.
+- **Reads** the plan documents you chose in `/todo init`, to drop items that are ticked `- [x]` there.
+- **Reads** Claude Code settings, the Claude desktop app's `config.json`, and the `LC_ALL` / `LC_MESSAGES` / `LANG` environment variables — only to pick the panel language.
+- **Registers** one tool (`mcp__todo-panel__update`) and two commands for Claude, and observes the built-in task-list tools to fold session tasks into the Backlog.
+
+## Token usage
+
+Showing the panel, click-to-fill, and file syncing all run locally and **cost no tokens**. Tokens are only used for:
+
+- about 300–600 tokens of tool description added to each request (this part is cached);
+- about 100–300 tokens each time Claude adds or updates an item;
+- `/todo init`, which runs once; the cost depends on how much documentation your project has.
