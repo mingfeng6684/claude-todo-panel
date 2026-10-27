@@ -66,6 +66,16 @@ describe('sync', () => {
     const files = new Map([['docs/plans/login.md', '### Task 1\n- [x] 補上登入 API 單元測試\n']])
     expect(syncPlans(parse(SAMPLE), files).backlog.map(t => t.id)).toEqual(['t2', 't3'])
   })
+
+  test('a ticked plan item removes only the exact backlog title, never its substrings', () => {
+    const { doc } = apply(parse(SAMPLE), [
+      { op: 'add_task', title: 'Test', source: 'docs/plans/login.md' },
+      { op: 'add_task', title: 'Test login', source: 'docs/plans/login.md' },
+    ])
+    const synced = syncPlans(doc, new Map([['docs/plans/login.md', '- [ ] Test\n- [x] Test login\n']]))
+    expect(synced.backlog.some(t => t.title === 'Test')).toBe(true)
+    expect(synced.backlog.some(t => t.title === 'Test login')).toBe(false)
+  })
 })
 
 describe('paths', () => {

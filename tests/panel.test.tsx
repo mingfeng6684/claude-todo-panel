@@ -42,6 +42,18 @@ test('the update tool writes the file and answers with the list', async ($, on) 
   expect(files.get('.claude/todo-panel.md')).toContain('- [ ] Keep the v1 endpoints? <!-- id:d1 -->')
 })
 
+test('an edit made outside the session survives the next update', async ($, on) => {
+  const { files } = world(on)
+  await $.tool.call({ tool: 'mcp__todo-panel__update', ops: [{ op: 'add_task', title: 'Add login tests' }] })
+  const text = files.get('.claude/todo-panel.md') ?? ''
+  files.set('.claude/todo-panel.md', text.replace('## Backlog', '## Backlog\n- [ ] Added elsewhere <!-- id:t9 -->'))
+  const ran = await $.tool.call({ tool: 'mcp__todo-panel__update', ops: [{ op: 'add_task', title: 'Second task' }] })
+  expect(String(ran.result)).toContain('Added elsewhere')
+  const saved = files.get('.claude/todo-panel.md') ?? ''
+  expect(saved).toContain('Added elsewhere')
+  expect(saved).toContain('Second task')
+})
+
 test('pressing a backlog task puts only its title in the prompt box', async ($, on) => {
   const { filled } = world(on)
   await $.tool.call({ tool: 'mcp__todo-panel__update', ops: [{ op: 'add_task', title: 'Add login tests' }] })

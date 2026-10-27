@@ -234,7 +234,7 @@ export function syncPlans(doc: TodoDoc, files: ReadonlyMap<string, string>): Tod
     if (!text) return false
     return text.split(/\r?\n/).some(line => {
       const m = /^\s*[-*] \[[xX]\]\s+(.*)$/.exec(line)
-      return m?.[1] !== undefined && (same(m[1], item.title) || m[1].toLowerCase().includes(item.title.trim().toLowerCase()))
+      return m?.[1] !== undefined && same(m[1], item.title)
     })
   }
   return { ...doc, decisions: doc.decisions.filter(d => !ticked(d)), backlog: doc.backlog.filter(t => !ticked(t)) }

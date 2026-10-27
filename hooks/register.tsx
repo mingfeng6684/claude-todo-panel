@@ -3,7 +3,7 @@ import type { EngineInterface, PluginOptions, Register } from 'claude-code'
 
 import type { Lang, SessionTask, TodoDoc } from '../types'
 import { TEXT, decidePrompt, fromAppConfig, guidance, initPrompt, toLang } from './i18n'
-import { FILE, apply, inProject, isPlanSource, parse, serialize, summary, syncPlans, syncSession } from './model'
+import { FILE, apply, emptyDoc, inProject, isPlanSource, parse, serialize, summary, syncPlans, syncSession } from './model'
 import type { Op } from './model'
 
 const PANE = 'todo-panel'
@@ -44,14 +44,38 @@ let lastText: string | undefined
 /** The folder the session started in: the list stays there when a command `cd`s elsewhere. */
 let root: string | undefined
 
-async function load($: EngineInterface): Promise<TodoDoc | null> {
+async function readText($: EngineInterface): Promise<string | undefined> {
   try {
-    const text = await $.fs.read(inProject(root, FILE))
-    lastText = text
-    return parse(text)
+    return await $.fs.read(inProject(root, FILE))
   } catch {
-    lastText = undefined
-    return null
+    return undefined
+  }
+}
+
+async function load($: EngineInterface): Promise<TodoDoc | null> {
+  const text = await readText($)
+  lastText = text
+  return text === undefined ? null : parse(text)
+}
+
+/**
+ * Applies ops to the list as it is on disk right now, so edits made outside
+ * this session are kept; when another writer lands mid-update, the ops are
+ * re-applied to that newer version instead of overwriting it.
+ */
+async function applyToFile($: EngineInterface, ops: readonly Op[]): Promise<{ doc: TodoDoc; notes: string[] }> {
+  for (let attempt = 0; ; attempt++) {
+    const baseText = await readText($)
+    const base = baseText !== undefined ? parse(baseText) : ((await read($, docAtom)) ?? emptyDoc())
+    const { doc, notes } = apply(base, ops)
+    if (ops.length === 0) return { doc, notes }
+    const nowText = await readText($)
+    if (nowText !== baseText && attempt < 2) continue
+    const text = serialize(doc)
+    if (text !== nowText) await $.fs.write(inProject(root, FILE), text)
+    lastText = text
+    await update($, docAtom, () => doc)
+    return { doc, notes }
   }
 }
 
@@ -211,12 +235,9 @@ export const register: Register = (on, options) => {
 
   on('tool.call', { tool: TOOL }, async ($, e) => {
     const input = e as unknown as { ops?: Op[] }
-    const current = (await read($, docAtom)) ?? (await load($)) ?? { sources: [], decisions: [], backlog: [] }
-    const { doc, notes } = apply(current, input.ops ?? [])
-    if ((input.ops ?? []).length > 0) {
-      await save($, doc)
-      void openPane($)
-    }
+    const ops = input.ops ?? []
+    const { doc, notes } = await applyToFile($, ops)
+    if (ops.length > 0) void openPane($)
     return { result: [summary(doc), ...notes.map(n => `note: ${n}`)].join('\n') }
   }).catch(() => ({ deny: 'todo-panel could not update .claude/todo-panel.md.' }))
 
@@ -257,8 +278,10 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
-    const doc = await read($, docAtom)
-    if (doc === null || e.isAborted) return done
+    if (e.isAborted || (await read($, docAtom)) === null) return done
+    // Sync against the file as it is now, not the cached doc, so hand edits survive.
+    const doc = await load($)
+    if (doc === null) return done
     const tasks = await read($, tasksAtom)
     const synced = await withPlans($, syncSession(doc, tasks))
     if (serialize(synced) !== serialize(doc)) await save($, synced)
