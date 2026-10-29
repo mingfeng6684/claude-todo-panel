@@ -1,6 +1,6 @@
 {
   "name": "todo-panel",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A To Do pane of pending decisions and backlog tasks, kept in .claude/todo-panel.md and ordered by Claude.",
   "types": "./types/index.d.ts",
   "userConfig": {

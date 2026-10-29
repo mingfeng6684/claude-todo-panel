@@ -58,34 +58,48 @@ async function load($: EngineInterface): Promise<TodoDoc | null> {
   return text === undefined ? null : parse(text)
 }
 
-/**
- * Applies ops to the list as it is on disk right now, so edits made outside
- * this session are kept; when another writer lands mid-update, the ops are
- * re-applied to that newer version instead of overwriting it.
- */
-async function applyToFile($: EngineInterface, ops: readonly Op[]): Promise<{ doc: TodoDoc; notes: string[] }> {
-  for (let attempt = 0; ; attempt++) {
-    const baseText = await readText($)
-    const base = baseText !== undefined ? parse(baseText) : ((await read($, docAtom)) ?? emptyDoc())
-    const { doc, notes } = apply(base, ops)
-    if (ops.length === 0) return { doc, notes }
-    const nowText = await readText($)
-    if (nowText !== baseText && attempt < 2) continue
-    const text = serialize(doc)
-    if (text !== nowText) await $.fs.write(inProject(root, FILE), text)
-    lastText = text
-    await update($, docAtom, () => doc)
-    return { doc, notes }
-  }
+/** The list a change starts from: the file's, else the one this session holds. */
+async function baseOf($: EngineInterface, text: string | undefined): Promise<TodoDoc> {
+  return text !== undefined ? parse(text) : ((await read($, docAtom)) ?? emptyDoc())
 }
 
-async function save($: EngineInterface, doc: TodoDoc): Promise<void> {
-  const text = serialize(doc)
-  if (text !== lastText) {
-    await $.fs.write(inProject(root, FILE), text)
-    lastText = text
+const ATTEMPTS = 3
+const CONFLICT = '.claude/todo-panel.md changed while saving, so todo-panel left the newer version in place. Call the tool with no ops to read the list, then redo any change it is missing.'
+
+type Change = { doc: TodoDoc; notes: string[] }
+
+/**
+ * Changes the list as it is on disk right now, so edits made outside this
+ * session are kept. The host has no conditional write, so the file is read
+ * again just before the write, with nothing awaited in between, and read back
+ * after it. A version newer than the one changed is never written over: the
+ * change is redone on it, up to ATTEMPTS times, and otherwise nothing is
+ * written. Answers undefined when another writer won.
+ */
+async function rewrite($: EngineInterface, change: (base: TodoDoc) => Change | Promise<Change>): Promise<Change | undefined> {
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const baseText = await readText($)
+    const base = await baseOf($, baseText)
+    const changed = await change(base)
+    const text = serialize(changed.doc)
+    if (baseText !== undefined && text === serialize(base)) {
+      lastText = baseText
+    } else {
+      if ((await readText($)) !== baseText) continue
+      await $.fs.write(inProject(root, FILE), text)
+      if ((await readText($)) !== text) return undefined
+      lastText = text
+    }
+    await update($, docAtom, () => changed.doc)
+    return changed
   }
-  await update($, docAtom, () => doc)
+  return undefined
+}
+
+/** No ops only reads the list, and never creates the file. */
+async function applyToFile($: EngineInterface, ops: readonly Op[]): Promise<Change | undefined> {
+  if (ops.length > 0) return rewrite($, base => apply(base, ops))
+  return apply(await baseOf($, await readText($)), ops)
 }
 
 async function resolveLang($: EngineInterface, options: PluginOptions): Promise<Lang> {
@@ -174,7 +188,7 @@ export const register: Register = (on, options) => {
 
     const doc = await load($)
     if (doc) {
-      await save($, await withPlans($, doc))
+      await rewrite($, async base => ({ doc: await withPlans($, base), notes: [] }))
       void openPane($)
     } else {
       await update($, docAtom, () => null)
@@ -236,7 +250,9 @@ export const register: Register = (on, options) => {
   on('tool.call', { tool: TOOL }, async ($, e) => {
     const input = e as unknown as { ops?: Op[] }
     const ops = input.ops ?? []
-    const { doc, notes } = await applyToFile($, ops)
+    const changed = await applyToFile($, ops)
+    if (changed === undefined) return { deny: CONFLICT }
+    const { doc, notes } = changed
     if (ops.length > 0) void openPane($)
     return { result: [summary(doc), ...notes.map(n => `note: ${n}`)].join('\n') }
   }).catch(() => ({ deny: 'todo-panel could not update .claude/todo-panel.md.' }))
@@ -280,11 +296,10 @@ export const register: Register = (on, options) => {
     const done = await next(e)
     if (e.isAborted || (await read($, docAtom)) === null) return done
     // Sync against the file as it is now, not the cached doc, so hand edits survive.
-    const doc = await load($)
-    if (doc === null) return done
+    if ((await load($)) === null) return done
     const tasks = await read($, tasksAtom)
-    const synced = await withPlans($, syncSession(doc, tasks))
-    if (serialize(synced) !== serialize(doc)) await save($, synced)
+    // A conflict is left alone: the next turn syncs again.
+    await rewrite($, async base => ({ doc: await withPlans($, syncSession(base, tasks)), notes: [] }))
     return done
   })
 
